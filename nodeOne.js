@@ -13,11 +13,13 @@ const Possibility = require('././modules/Possibility')
 const User = require('./modules/user')
 const Post = require('././modules/post')
 const Comment = require('././modules/comment')
+const Payment = require('./modules/payment')
 const Result = require('./modules/result')
 const bcrypt = require('bcrypt')
 const multer = require("multer")
 const jwt = require('jsonwebtoken');
 const fs = require('fs')
+
 
 const storage = multer.diskStorage({
     
@@ -50,9 +52,23 @@ app.use('/pdf', express.static(__dirname + '/uploads'))
 
 var cors = require('cors')
 app.use(cors())
+
+
 User.belongsTo(Post, {
     foreignKey: 'userId'
 })
+
+User.belongsToMany(Result,{
+    through:"payment",
+    foreignKey: 'userId',
+    timestamps:true
+})
+Result.belongsToMany(User,{
+    through:"payment",
+    foreignKey: 'resultId',
+    timestamps:true
+})
+
 
 
 // all about catogry and options *** statrt ***
@@ -461,6 +477,88 @@ app.get('/api/download',upload.none(),(req,res)=>{
 // all about result *** end ***
 
 
+// all about payment *** start ***
+
+app.post('/api/payment',upload.none(),(req,res)=>{
+    var customerRef = req.body.customerRef.split(',')
+    Payment.findOne({
+        where:{
+            [Op.or]: [{userId: customerRef[0]}, {resultId: customerRef[1]}]
+        }
+    }).then((payment)=>{
+        if(!payment){
+            Payment.create({
+                userId:customerRef[0],
+                resultId:customerRef[1],
+                isPaid:false
+            }).then((result)=>{
+                if(result){
+                    res.json({
+                        'query':1
+                    })
+                }
+            })
+        }else{
+            res.json({
+                'query':-1
+            })
+        
+        }
+    })
+ 
+})
+
+app.delete('/api/payment',(req,res)=>{
+    var customerRef = req.body.customerRef.split(',')
+    Payment.findOne({
+        where:{
+            [Op.or]: [{userId: customerRef[0]}, {resultId: customerRef[1]}]
+        }
+    }).then((payment) => {
+        //check if exisits
+        if (payment) {
+           
+           payment.destroy().then(()=>{
+               res.json({
+                'query': 1,
+                "cause": "deleted"
+               })
+           })
+        } else {
+            res.json({
+                'query': -1,
+                "cause": "not found"
+            })
+        }
+
+    })
+})
+app.put('/api/payment',(req,res)=>{
+    var customerRef = req.body.customerRef.split(',')
+    Payment.findOne({
+        where:{
+            [Op.or]: [{userId: customerRef[0]}, {resultId: customerRef[1]}]
+        }
+    }).then((payment) => {
+    
+        if (payment) {
+        
+            payment.update({
+                isPaid:true
+            }).then((resu) => {
+                res.json({
+                    'query': 1})
+            })
+        } else {
+            res.json({
+                'query': -1,
+                "cause": "not found"
+            })
+        }
+
+    })
+})
+// all about payment *** end ***
 
         function isAuthenticated(req, res, next) {
             if (typeof req.headers.authorization !== "undefined") {
